@@ -1,0 +1,7 @@
+Flask
+Flask-WTF
+Flask-SQLAlchemy
+pymysql
+cryptography
+pytest
+wtforms
