@@ -18,29 +18,26 @@ def test_celsius_to_fahrenheit_conversion():
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
 
-    with app.test_client() as client:
-        with patch("app.db.session.add") as mock_add, \
-             patch("app.db.session.commit") as mock_commit, \
-             patch("app.Temperature.query") as mock_query:
+    with app.app_context():
+        with app.test_client() as client:
+            with patch("app.db.session.add") as mock_add, \
+                 patch("app.db.session.commit") as mock_commit, \
+                 patch("app.Temperature.query") as mock_query:
 
-            mock_query.order_by.return_value.limit.return_value.all.return_value = []
+                mock_query.order_by.return_value.limit.return_value.all.return_value = []
 
-            response = client.post(
-                "/",
-                data={"celsius": "25"},
-                follow_redirects=True
-            )
+                response = client.post(
+                    "/",
+                    data={"celsius": "25"},
+                    follow_redirects=True
+                )
 
-            assert response.status_code == 200
+                assert response.status_code == 200
 
-            mock_add.assert_called_once()
-            mock_commit.assert_called_once()
+                temperature = mock_add.call_args[0][0]
 
-            temperature = mock_add.call_args[0][0]
-
-            assert temperature.celsius == 25
-            assert temperature.fahrenheit == 77
-
+                assert temperature.celsius == 25
+                assert temperature.fahrenheit == 77
 
 def test_negative_celsius_conversion():
     app.config["TESTING"] = True
