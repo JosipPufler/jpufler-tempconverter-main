@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: rootpassword
+  MYSQL_PASSWORD: pass
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempconverter-config
+data:
+  DB_HOST: mysql
+  DB_NAME: tempconverter
+  DB_USER: user
+  STUDENT: "Josip Pufler"
+  COLLEGE: "Algebra Bernays"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          env:
+            - name: MYSQL_DATABASE
+              value: jpufler/tempconverter
+            - name: MYSQL_USER
+              value: user
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+          ports:
+            - containerPort: 3306
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tempconverter
+spec:
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app: tempconverter
+
+  template:
+    metadata:
+      labels:
+        app: tempconverter
+
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: tempconverter
+              topologyKey: kubernetes.io/hostname
+
+      containers:
+        - name: tempconverter
+          image: tempconverter:dev
+
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: tempconverter-config
+                  key: DB_HOST
+
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: tempconverter-config
+                  key: DB_NAME
+
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: tempconverter-config
+                  key: DB_USER
+
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: MYSQL_PASSWORD
+
+            - name: STUDENT
+              valueFrom:
+                configMapKeyRef:
+                  name: tempconverter-config
+                  key: STUDENT
+
+            - name: COLLEGE
+              valueFrom:
+                configMapKeyRef:
+                  name: tempconverter-config
+                  key: COLLEGE
+
+          ports:
+            - containerPort: 5000
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempconverter
+spec:
+  type: LoadBalancer
+  selector:
+    app: tempconverter
+  ports:
+    - port: 80
+      targetPort: 5000
